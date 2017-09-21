@@ -301,7 +301,7 @@ HwMessenger::HwMessenger(CephContext *cct, entity_name_t name,
 
   // Before creating all other components,
   // make sure the connection factory works
-  conn_factory = ConnectionFactory::create_factory(type);
+  conn_factory = HwConnectionFactory::create_factory(type);
   assert(conn_factory != nullptr);
   
   StackSingleton *single;
@@ -310,7 +310,7 @@ HwMessenger::HwMessenger(CephContext *cct, entity_name_t name,
   stack = single->stack.get();
   stack->start();
   local_worker = stack->get_worker();
-  local_connection = new AsyncConnection(cct, this, &dispatch_queue, local_worker);
+  local_connection = conn_factory.create_connection(cct, this, &dispatch_queue, local_worker);
   init_local_connection();
   reap_handler = new C_handle_reap(this);
   unsigned processor_num = 1;
@@ -553,7 +553,7 @@ void HwMessenger::wait()
 void HwMessenger::add_accept(Worker *w, ConnectedSocket cli_socket, entity_addr_t &addr)
 {
   lock.Lock();
-  HwConnectionRef conn = new AsyncConnection(cct, this, &dispatch_queue, w);
+  HwConnectionRef conn = conn_factory.create_connection(cct, this, &dispatch_queue, w);
   conn->accept(std::move(cli_socket), addr);
   accepting_conns.insert(conn);
   lock.Unlock();
@@ -569,7 +569,7 @@ HwConnectionRef HwMessenger::create_connect(const entity_addr_t& addr, int type)
 
   // create connection
   Worker *w = stack->get_worker();
-  HwConnectionRef conn = new AsyncConnection(cct, this, &dispatch_queue, w);
+  HwConnectionRef conn = conn_factory.create_connection(cct, this, &dispatch_queue, w);
   conn->connect(addr, type);
   assert(!conns.count(addr));
   conns[addr] = conn;

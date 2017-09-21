@@ -281,7 +281,7 @@ private:
   std::vector<Processor*> processors;
   friend class Processor;
   DispatchQueue dispatch_queue;
-  ConnectionFactory *conn_factory;
+  HwConnectionFactory *conn_factory;
   
 
 
@@ -508,6 +508,7 @@ public:
   /**
    * @} // HwMessenger Internals
    */
-} ;
+
+}; // HwMessenger
 
 #endif /* CEPH_HW_MESSENGER_H */

@@ -20,7 +20,7 @@
 
 #include <string>
 #include "msg/hardware_async/HwMessenger.h"
-
+#include "RDMAConnection.h"
 
 /**
  * RDMA implementation of the HwConnectionFactory interface which
@@ -35,15 +35,7 @@
 class RDMAConnFactory : public HwConnectionFactory
 {
   public:
-    
-    // Specific type of an RDMA connection
-    enum class RDMAConnType : int 
-    {
-     RC_RDMA  = 1,  // reliable connected
-     UC_RDMA  = 2,  // unreliable connected
-     UD_RDMA  = 3   // unreliable datagram 
-    };
-
+   
     RDMAConnFactory(const std::string &connType);
     RDMAConnFactory(const RDMAConnFacotry &other) = delete;
     RDMAConnFactory& operator=(const RDMAConnFacotry &other) = delete;
@@ -80,7 +72,7 @@ class RDMAConnFactory : public HwConnectionFactory
     *
     * @param connType : connection type that will be created
     */
-    void setRDMAConnType(const RDMAConnType connType);
+    void setRDMAConnType(const RDMAConnection::RDMAConnType connType);
 
 
    /**
@@ -88,12 +80,12 @@ class RDMAConnFactory : public HwConnectionFactory
     *
     * @return : RDMA connection type
     **/
-    RDMAConnType getRDMAConnType(void) const;
+    RDMAConnection::RDMAConnType getRDMAConnType(void) const;
 
   private:
-    RDMAConnType rdma_type; 
+    RDMAConnection::RDMAConnType rdma_type; 
 
-};
+}; // RDMAConnFactory
 
 
 

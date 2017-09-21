@@ -24,20 +24,21 @@
 
 
 RDMAConnFactory::RDMAConnFactory(const std::string &connType)
-  HwConnectionFactory(std::move("rdma")), rdma_type(RDMAConnType::RC_RDMA)
+  : HwConnectionFactory(std::move("rdma")), 
+    rdma_type(RDMAConnection::RDMAConnType::RC_RDMA)
 {
   // Set the type that this factory will use for creating
   // new connections. Default is RC_RDMA
   
   if(connType.find("uc-rdma"))
   {
-    rdma_type = RDMAConnType::UC_RDMA;
+    rdma_type = RDMAConnection::RDMAConnType::UC_RDMA;
   }
   else
   {
     if(connType.find("ud-rdma"))
     {
-      rdma_type = RDMAConnType::UD_RDMA;
+      rdma_type = RDMAConnection::RDMAConnType::UD_RDMA;
     }
   }
 
@@ -50,7 +51,7 @@ RDMAConnFactory::~RDMAConnFactory()
 HwConnection* RDMAConnFactory::create_connection(CephContext *c,
                                                  HwMessenger *m,
                                                  DispatchQueue *d,
-                                                 Worker w*)
+                                                 Worker *w)
 
 {
   return create_RDMA_connection(c,m,d,w);
@@ -70,9 +71,9 @@ RDMAConnection* RDMAConnFactory::create_RDMA_connection(CephContext *c,
 
   switch(rdma_type)
   {
-    RDMAConnType::UC_RDMA: return new RDMAUnreliableConnected(c, m, d, w);
-    RDMAConnType::UD_RDMA: return new RDMAUnreliableDatagram(c, m, d, w);
-    RDMAConnType::RC_RDMA:
+    RDMAConnection::RDMAConnType::UC_RDMA: return new RDMAUnreliableConnected(c, m, d, w);
+    RDMACOnnection::RDMAConnType::UD_RDMA: return new RDMAUnreliableDatagram(c, m, d, w);
+    RDMAConnection::RDMAConnType::RC_RDMA:
     default:               return new RDMAReliableConnected(c, m, d, w);
   }
   
@@ -80,13 +81,13 @@ RDMAConnection* RDMAConnFactory::create_RDMA_connection(CephContext *c,
 }
 
 
-void RDMAConnFactory::setRDMAConnType(const RDMAConnFactory::RDMAConnType type)
+void RDMAConnFactory::setRDMAConnType(const RDMAConnection::RDMAConnType type)
 {
   rdma_type = type;
 }
 
 
-RDMAConnFactory::RDMAConnType RDMAConnFactory::getRDMAConnType(void) const
+RDMAConnection::RDMAConnType RDMAConnFactory::getRDMAConnType(void) const
 {
   return rdma_type;
 }

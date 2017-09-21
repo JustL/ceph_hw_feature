@@ -42,8 +42,9 @@ class HwMessenger;
 class HwConnection : public Connection 
 {
   public:
-    HwConnection(CephContext *cct, HwMessenger *m):
-      Connection(cct, m), hw_messenger(m)
+    HwConnection(CephContext *cct, HwMessenger *m)
+      : Connection(cct, m), 
+        hw_messenger(m)
     {}
 
     virtual ~HwConnection override {}
@@ -51,9 +52,8 @@ class HwConnection : public Connection
     // Connection.h virtual functions
     // For detailed information, refer to msg/Connection.h
     virtual bool is_connected() override = 0;
-    virtual int  send_message() override = 0;
+    virtual int  send_message(Message *m) override = 0;
     virtual void send_keepalive() override = 0;
-    virtual void mark_down() override = 0;
     virtual void mark_down() override = 0;
     virtual void mark_disposable() override = 0;
 
@@ -73,7 +73,30 @@ class HwConnection : public Connection
     * This method provides an interface for Hw Messengers
     * for adding new incoming connections.
     */ 
-    virtual void accept() 
+    virtual void accept() = 0;
+
+
+   /**
+    * Method checks if the connection is ready to send
+    * data. This method is more hardware specific since
+    * harware also supports not connected connections,
+    * so we need a way of determining when we can send
+    * data to the connection (use it).
+    *
+    * @return : return true when data can be passed to 
+    *           the newly instantiated connection
+    */ 
+    virtual bool ready_for_data(void) const = 0;
+
+
+   /**
+    * Metod returns performance counters to the 
+    * messenger to observe the performance of 
+    * a connection.
+    *
+    * @return : perforamnce counters (specific to the implementation)
+    */
+    PerfCounters* get_perf_counter(void) = 0; 
 
 
   protected:

@@ -17,12 +17,16 @@
 #ifndef CEPH_RDMA_CONNECTION_H
 #define CEPH_RDMA_CONNECTION_H
 
+// system headers
+#include <cstdlib>
+
+
 #include "msg/hardware_async/HwConnection.h"
 
 
 /**
  * An abstract RDMA class from which each of the RDMA specific
- * classes ingerits. The interface provides operations that 
+ * classes inherits. The interface provides operations that 
  * applications can directly use. The underlying implementations
  * (RDMAReliableConnected, RDMAUnreliableConnected, RDMAUnreliableDatagram)
  * provide extra services to the applications (for more information 
@@ -37,7 +41,52 @@ class RDMAConnection : public HwConnection
 {
 
 
-};
+  public:
+ 
+    // Specific type of an RDMA connection
+    enum class RDMAConnType : int
+    {
+      RC_RDMA = 1, // reliable connected
+      UC_RDMA = 2, // unreliable connected
+      UD_RDMA = 3  // unreliable datagram
+    };
+
+    RDMAConnection(CephContext *c, HwMessenger *m, DispatchQueue *d, Worker *w, const RDMAConnType rdma_type);
+
+    virtual ~RDMAConnection() override;
+
+
+    virtual std::ssize_t get_memory(const std::ssize_t size_mem, void* addr_mem) {return -1;}
+  
+    virtual std::ssize_t rdma_read_memory(const std::ssize_t read_bytes, void* addr_mem) {return -1;}
+  
+    virtual std::ssize_t rdma_write_memory(const std::ssize_t write_bytes, void* addr_mem) {return -1;}
+
+
+    virtual std::ssize_t rdma_send(const std::ssize_t bytes, void* addr_mem){return -1;}
+
+    virtual std::ssize_t rdma_recv(const std::ssize_t bytes, void* addr_mem){return -1;} 
+
+    virtual RDMAConnType get_RDMA_type(void) const = 0;
+
+
+  private:
+    RDMAConnType m_rdma_type;
+    // may add an extra abstraction
+    // inheritance may not be the best way of
+    // implementing different types
+    // of RDMAConnection. May just use an interface
+    // of a socket that is passed and the
+    // same connection class.
+    // This way it is very easy to convert a 
+    // connection from one type to a different one.
+    // However, now sticking to inheritance due to 
+    // already provided RDMA facilities in src/msg/async/rdma/
+    
+    /* RDMASocket* m_socket*/     
+
+
+}; // RDMAConnection
 
 
 
