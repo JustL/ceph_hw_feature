@@ -1,2 +1,3 @@
 # ceph_hw_feature
-Some hardware-specific features for Ceph Storage
+Some hardware-specific features for Ceph Storage.
+In Progress...
