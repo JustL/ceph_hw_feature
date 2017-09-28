@@ -53,8 +53,8 @@ class Worker;
 /**
  * Class that implements the Reliable Connected RDMA
  * connection. The connection follows the pattern of
- * the RDMAReliableConnection (src/msg/async/RDMAReliableConnection.h)
- * since it implments very similar interface and provides
+ * the AsyncConnection (src/msg/async/AsyncConnection.h)
+ * since it implements a very similar interface and provides
  * similar services to the users of the connection.
  */
 
@@ -62,8 +62,11 @@ class RDMAReliableConnected : public RDMAConnection
 {
 
   public:
+
     virtual RDMAConnection::RDMAConnType get_RDMA_type(void) const override
-    {return RDMAConnection::RDMAConnType::RC_RDMA;}
+    { 
+      return RDMAConnection::RDMAConnType::RC_RDMA; 
+    }
   
 
   private:
@@ -75,11 +78,34 @@ class RDMAReliableConnected : public RDMAConnection
       return _try_send(more);
     }
   
-    std::ssize_t _try_send(bool more=false);
+    std::ssize_t _try_send(const bool more=false);
     std::ssize_t _send(Message *m);
     void prepare_send_message(uint64_t features, Message *m, bufferlist &bl);
 
-    std::ssize_t read_until(unsigned int needed, char *p);
+    std::ssize_t read_until(const unsigned int len, char *p);
+
+    /**
+     * This is an RDMA connection, so it is possible to 
+     * read directly from from memory, without memory copying.
+     *
+     * @param : bPtr - buffer pointer for enqueing references
+     *                 to the memory to read
+     * 
+     *  @ return : number of read bytes
+     */
+    std::ssize_t read_zero_copy(bufferptr &bPtr);
+    
+    /**
+     * Traditional way of reading data from a socket.
+     *
+     * @param  : buf - bufer for copying data into
+     * @param  : len - how many bytes to read
+     *
+     * @return : bytes read or an error code 
+     */ 
+    std::ssize_t read_simple(char *buf, const unsigned len) { return -1;};
+ 
+
     std::ssize_t _process_conection();
     void _connect();
     void _stop();
@@ -172,74 +198,6 @@ class RDMAReliableConnected : public RDMAConnection
 
     void reset_recv_state();
 
-    /**
-     * The DelayedDelivery is for injecting delays into Message delivery off
-     * the socket. It is only enabled if delays are requested, and if they
-     * are then it pulls Messages off the DelayQueue and puts them into the
-     * HwMessenger event queue.
-     */
-    class DelayedDelivery : public EventCallback 
-    {
-
-    
-      std::set<uint64_t> register_time_events; // need to delete it if stop
-      std::deque<std::pair<utime_t, Message*> > delay_queue;
-      std::mutex delay_lock;
-      HwMessenger *msgr;
-      EventCenter *center;
-      DispatchQueue *dispatch_queue;
-      uint64_t conn_id;
-      std::atomic_bool stop_dispatch;
-
-     public:
-       explicit DelayedDelivery(HwMessenger *omsgr, EventCenter *c,
-                             DispatchQueue *q, uint64_t cid)
-             : msgr(omsgr), center(c), dispatch_queue(q), conn_id(cid),
-               stop_dispatch(false) { }
-
-       ~DelayedDelivery() override 
-       {
-         assert(register_time_events.empty());
-         assert(delay_queue.empty());
-       }
-
-      void set_center(EventCenter *c) { center = c; }
-      void do_request(int id) override;
-      void queue(double delay_period, utime_t release, Message *m) 
-      {
-        std::lock_guard<std::mutex> l(delay_lock);
-        delay_queue.push_back(std::make_pair(release, m));
-        register_time_events.insert(center->create_time_event(delay_period*1000000, this));
-      }
-
-      void discard() 
-      {
-        stop_dispatch = true;
-        center->submit_to(center->get_id(), [this] () mutable 
-        {
-          std::lock_guard<std::mutex> l(delay_lock);
-          while (!delay_queue.empty()) 
-          {
-            Message *m = delay_queue.front().second;
-            dispatch_queue->dispatch_throttle_release(m->get_dispatch_throttle_size());
-            m->put();
-            delay_queue.pop_front();
-          }
- 
-          for (auto i : register_time_events)
-            center->delete_time_event(i);
-          
-          register_time_events.clear();
-          stop_dispatch = false;
-        }, true);
-      }
-
-      bool ready() const { return !stop_dispatch && delay_queue.empty() && register_time_events.empty(); }
-      void flush();
-
-    } *delay_state;
-
-
   public:
     RDMAReliableConnection(CephContext *cct, HwMessenger *m, DispatchQueue *q, Worker *w);
     ~RDMAReliableConnection() override;
@@ -275,96 +233,65 @@ class RDMAReliableConnected : public RDMAConnection
     }
   
    private:
-    enum 
-    {
-      STATE_NONE,
-      STATE_OPEN,
-      STATE_OPEN_KEEPALIVE2,
-      STATE_OPEN_KEEPALIVE2_ACK,
-      STATE_OPEN_TAG_ACK,
-      STATE_OPEN_MESSAGE_HEADER,
-      STATE_OPEN_MESSAGE_THROTTLE_MESSAGE,
-      STATE_OPEN_MESSAGE_THROTTLE_BYTES,
-      STATE_OPEN_MESSAGE_THROTTLE_DISPATCH_QUEUE,
-      STATE_OPEN_MESSAGE_READ_FRONT,
-      STATE_OPEN_MESSAGE_READ_MIDDLE,
-      STATE_OPEN_MESSAGE_READ_DATA_PREPARE,
-      STATE_OPEN_MESSAGE_READ_DATA,
-      STATE_OPEN_MESSAGE_READ_FOOTER_AND_DISPATCH,
-      STATE_OPEN_TAG_CLOSE,
-      STATE_WAIT_SEND,
-      STATE_CONNECTING,
-      STATE_CONNECTING_RE,
-      STATE_CONNECTING_WAIT_BANNER_AND_IDENTIFY,
-      STATE_CONNECTING_SEND_CONNECT_MSG,
-      STATE_CONNECTING_WAIT_CONNECT_REPLY,
-      STATE_CONNECTING_WAIT_CONNECT_REPLY_AUTH,
-      STATE_CONNECTING_WAIT_ACK_SEQ,
-      STATE_CONNECTING_READY,
-      STATE_ACCEPTING,
-      STATE_ACCEPTING_WAIT_BANNER_ADDR,
-      STATE_ACCEPTING_WAIT_CONNECT_MSG,
-      STATE_ACCEPTING_WAIT_CONNECT_MSG_AUTH,
-      STATE_ACCEPTING_WAIT_SEQ,
-      STATE_ACCEPTING_READY,
-      STATE_STANDBY,
-      STATE_CLOSED,
-      STATE_WAIT,       // just wait for racing connection
-    };
+          
 
-    static const int TCP_PREFETCH_MIN_SIZE;
-    static const char *get_state_name(int state) 
-    {
-      const char* const statenames[] = {"STATE_NONE",
-                                        "STATE_OPEN",
-                                        "STATE_OPEN_KEEPALIVE2",
-                                        "STATE_OPEN_KEEPALIVE2_ACK",
-                                        "STATE_OPEN_TAG_ACK",
-                                        "STATE_OPEN_MESSAGE_HEADER",
-                                        "STATE_OPEN_MESSAGE_THROTTLE_MESSAGE",
-                                        "STATE_OPEN_MESSAGE_THROTTLE_BYTES",
-                                        "STATE_OPEN_MESSAGE_THROTTLE_DISPATCH_QUEUE",
-                                        "STATE_OPEN_MESSAGE_READ_FRONT",
-                                        "STATE_OPEN_MESSAGE_READ_MIDDLE",
-                                        "STATE_OPEN_MESSAGE_READ_DATA_PREPARE",
-                                        "STATE_OPEN_MESSAGE_READ_DATA",
-                                        "STATE_OPEN_MESSAGE_READ_FOOTER_AND_DISPATCH",
-                                        "STATE_OPEN_TAG_CLOSE",
-                                        "STATE_WAIT_SEND",
-                                        "STATE_CONNECTING",
-                                        "STATE_CONNECTING_RE",
-                                        "STATE_CONNECTING_WAIT_BANNER_AND_IDENTIFY",
-                                        "STATE_CONNECTING_SEND_CONNECT_MSG",
-                                        "STATE_CONNECTING_WAIT_CONNECT_REPLY",
-                                        "STATE_CONNECTING_WAIT_CONNECT_REPLY_AUTH",
-                                        "STATE_CONNECTING_WAIT_ACK_SEQ",
-                                        "STATE_CONNECTING_READY",
-                                        "STATE_ACCEPTING",
-                                        "STATE_ACCEPTING_WAIT_BANNER_ADDR",
-                                        "STATE_ACCEPTING_WAIT_CONNECT_MSG",
-                                        "STATE_ACCEPTING_WAIT_CONNECT_MSG_AUTH",
-                                        "STATE_ACCEPTING_WAIT_SEQ",
-                                        "STATE_ACCEPTING_READY",
-                                        "STATE_STANDBY",
-                                        "STATE_CLOSED",
-                                        "STATE_WAIT"};
-      return statenames[state];
-    }
+     enum class RC_State : unsigned int 
+     {
+       STATE_NONE = 0,
+       STATE_OPEN,
+       STATE_OPEN_KEEPALIVE2,
+       STATE_OPEN_KEEPALIVE2_ACK,
+       STATE_OPEN_TAG_ACK,
+       STATE_OPEN_MESSAGE_HEADER,
+       STATE_OPEN_MESSAGE_THROTTLE_MESSAGE,
+       STATE_OPEN_MESSAGE_THROTTLE_BYTES,
+       STATE_OPEN_MESSAGE_THROTTLE_DISPATCH_QUEUE,
+       STATE_OPEN_MESSAGE_READ_FRONT,
+       STATE_OPEN_MESSAGE_READ_MIDDLE,
+       STATE_OPEN_MESSAGE_READ_DATA_PREPARE,
+       STATE_OPEN_MESSAGE_READ_DATA,
+       STATE_OPEN_MESSAGE_READ_FOOTER_AND_DISPATCH,
+       STATE_OPEN_TAG_CLOSE,
+       STATE_WAIT_SEND,
+       STATE_CONNECTING,
+       STATE_CONNECTING_RE,
+       STATE_CONNECTING_WAIT_BANNER_AND_IDENTIFY,
+       STATE_CONNECTING_SEND_CONNECT_MSG,
+       STATE_CONNECTING_WAIT_CONNECT_REPLY,
+       STATE_CONNECTING_WAIT_CONNECT_REPLY_AUTH,
+       STATE_CONNECTING_WAIT_ACK_SEQ,
+       STATE_CONNECTING_READY,
+       STATE_ACCEPTING,
+       STATE_ACCEPTING_WAIT_BANNER_ADDR,
+       STATE_ACCEPTING_WAIT_CONNECT_MSG,
+       STATE_ACCEPTING_WAIT_CONNECT_MSG_AUTH,
+       STATE_ACCEPTING_WAIT_SEQ,
+       STATE_ACCEPTING_READY,
+       STATE_STANDBY,
+       STATE_CLOSED,
+       STATE_WAIT,       // just wait for racing connection
+     };
 
-    HwMessenger *async_msgr;
+    HwMessenger *hw_msgr;
     uint64_t conn_id;
     PerfCounters *logger;
     int global_seq;
+    
+
     __u32 connect_seq, peer_global_seq;
     std::atomic<uint64_t> out_seq{0};
     std::atomic<uint64_t> ack_left{0}, in_seq{0};
-    int state;
-    int state_after_send;
+    RC_State state;
+    RC_State state_after_send;
     ConnectedSocket cs;
     int port;
     Messenger::Policy policy;
 
     DispatchQueue *dispatch_queue;
+     
+    // for zero copying data
+    
+
 
     // lockfree, only used in own thread
     bufferlist outcoming_bl;
@@ -391,16 +318,12 @@ class RDMAReliableConnected : public RDMAConnection
     EventCallbackRef wakeup_handler;
     EventCallbackRef tick_handler;
     struct iovec msgvec[ASYNC_IOV_MAX];
-    char *recv_buf;
-    uint32_t recv_max_prefetch;
-    uint32_t recv_start;
-    uint32_t recv_end;
     set<uint64_t> register_time_events; // need to delete it if stop
     ceph::coarse_mono_clock::time_point last_active;
     uint64_t last_tick_id = 0;
     const uint64_t inactive_timeout_us;
 
-    // Tis section are temp variables used by state transition
+    // These are temp variables used by state transition
 
     // Open state
     utime_t recv_stamp;
@@ -474,6 +397,15 @@ class RDMAReliableConnected : public RDMAConnection
       return logger;
     }
     
+
+    private:
+
+      typedef RDMAReliabelConnected::RC_State RC_State;
+      
+      static const char *get_state_name(RC_State state)
+      {
+         return "";
+      }
 
 }; // RDMAReliable Connected
 

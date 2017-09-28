@@ -16,6 +16,7 @@
 #define CEPH_MSG_HWCONNECTION_H
 
 
+#include <boost/intrusive_ptr.hpp>
 #include "msg/Connection.h"
 
 // ======================================================
@@ -98,6 +99,8 @@ class HwConnection : public Connection
     */
     PerfCounters* get_perf_counter(void) = 0; 
 
+    
+    friend class boost::intrusive_ptr<HwConnection>;
 
   protected:
     HwMessenger* hw_messenger;

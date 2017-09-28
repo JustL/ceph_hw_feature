@@ -21,6 +21,7 @@
 #include <cstdlib>
 
 
+#include <boost/intrusive_ptr.hpp>
 #include "msg/hardware_async/HwConnection.h"
 
 
@@ -44,7 +45,7 @@ class RDMAConnection : public HwConnection
   public:
  
     // Specific type of an RDMA connection
-    enum class RDMAConnType : int
+    enum class RDMAConnType : unsigned
     {
       RC_RDMA = 1, // reliable connected
       UC_RDMA = 2, // unreliable connected
@@ -54,6 +55,11 @@ class RDMAConnection : public HwConnection
     RDMAConnection(CephContext *c, HwMessenger *m, DispatchQueue *d, Worker *w, const RDMAConnType rdma_type);
 
     virtual ~RDMAConnection() override;
+
+    virtual bool rdma_read_avail() const = 0;
+    virtual bool rdma_write_avail() const = 0;
+    virtual bool is_reliable() const = 0;
+    virtual bool is_datagram() const = 0;
 
 
     virtual std::ssize_t get_memory(const std::ssize_t size_mem, void* addr_mem) {return -1;}
@@ -67,10 +73,13 @@ class RDMAConnection : public HwConnection
 
     virtual std::ssize_t rdma_recv(const std::ssize_t bytes, void* addr_mem){return -1;} 
 
-    virtual RDMAConnType get_RDMA_type(void) const = 0;
+    virtual RDMAConnType get_RDMA_type(void) const
+    { return m_rdma_type; }
 
 
-  private:
+    friend class boost::intrusive_ptr<RDMAConnection>;
+
+  protected:
     RDMAConnType m_rdma_type;
     // may add an extra abstraction
     // inheritance may not be the best way of
@@ -88,6 +97,8 @@ class RDMAConnection : public HwConnection
 
 }; // RDMAConnection
 
+
+    typedef boost::intrusive_ptr<RDMAConnection> RDMAConnectonRef;
 
 
 #endif /* CEPH_RDMA_CONNECTION_H */
