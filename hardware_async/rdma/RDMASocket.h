@@ -41,16 +41,16 @@ class RDMASocket : public ConnectedSocketImpl
     // repeat the interfaces from the ConnectedSocketImpl
     // implementation
     virtual int is_connected() override = 0;
-    virtual std::ssize_t read(char*, size_t) override = 0;
-    virtual std::ssize_t zero_copy_read(bufferptr&) override = 0;
-    virtual std::ssize_t send(bufferlist &bl, bool more) override = 0;
+    virtual ssize_t read(char*, size_t) override = 0;
+    virtual ssize_t zero_copy_read(bufferptr&) override = 0;
+    virtual ssize_t send(bufferlist &bl, bool more) override = 0;
     virtual void shutdown() override = 0;
     virtual void close() override = 0;
     virtual int fd() const override = 0;
     virtual bool can_read_memory() const override = 0;
     virtual bool can_remotely_write() const override = 0;
-    virtual void get_memory_chunk(const std::size_t, bufferptr&) override = 0;
-    virtual std::ssize_t write_remotely(const std::size_t, bufferptr&) override = 0;
+    virtual ssize_t get_memory_chunk(const size_t, bufferptr&) override = 0;
+    virtual ssize_t write_remotely(const size_t, bufferptr&) override = 0;
     virtual bool is_reliable() const override = 0;
     
     // the below methods are taken from the RDMAConnectedSocketImpl
@@ -58,9 +58,9 @@ class RDMASocket : public ConnectedSocketImpl
     virtual void fault()  = 0; // taken from the RDMAConnectedSocketImpl
                                // source: msg/async/rmda/RDMAStack.h
 
-    virtual std::ssize_t submit(bool more) = 0; // taken from the 
+    virtual ssize_t submit(const bool more) = 0; // taken from the 
                                                 // RDMAConnectedSocketImpl
-    virtual void set_pending(bool val) = 0;
+    virtual void set_pending(const bool val) = 0;
     virtual bool is_pending() const = 0;
     virtual int try_connect(const entity_addr &, const SocketOptions &) = 0;
     virtual void pass_wc(std::vector<ibv_wc> &&v);
@@ -74,7 +74,7 @@ class RDMASocket : public ConnectedSocketImpl
    
 
     virtual RDMASocketType get_sock_type() const = 0;
-    
+    virtual void release_memory(const size_t, bufferptr &addr) = 0; 
 
 }; // RDMASocket
 

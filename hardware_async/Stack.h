@@ -40,16 +40,20 @@ class ConnectedSocketImpl {
   virtual bool can_remotely_write() const
   { return false; } 
  
-  virtual void get_memory_chunk(const std::size_t len, bufferptr &addr)
-  {  }
+  virtual ssize_t get_memory_chunk(const size_t len, bufferptr &addr)
+  { return -1; }
 
-  virtual std::ssize_t write_remotely(const std::size_t len, bufferptr &addr)
+  virtual ssize_t write_remotely(const size_t len, bufferptr &addr)
   {
     return -1;
   }
 
   virtual bool is_reliable() const
-  { return true; }  
+  { return true; } 
+
+  virtual void release_memory(const size_t, bufferptr &addr)
+  { }
+ 
 
 };
 
@@ -161,18 +165,22 @@ class ConnectedSocket {
   }
 
 
-  void get_local_memory(const std::size_t len, bufferptr &addr)
+  ssize_t get_local_memory(const size_t len, bufferptr &addr)
   {
     _csi->get_memory_chunk(len, addr);
   }
 
 
-  std::ssize_t  write_remotely(const std::size_t len, bufferptr &addr)
+  ssize_t  write_remotely(const size_t len, bufferptr &addr)
   {
     _csi->write_remotely(len, addr); 
   }
 
-    
+  
+  void release_memory(const size_t len, bufferptr &addr)
+  {
+    _csi->release_memory(len, addr);
+  }  
 
   bool is_reliable() const
   {
